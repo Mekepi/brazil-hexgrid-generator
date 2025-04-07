@@ -3,8 +3,8 @@ import shapely as sh
 
 from multiprocessing import Pool
 from time import perf_counter
-from os import mkdir, listdir, rename
-from os.path import dirname, abspath, isdir
+from os import makedirs, listdir, rename
+from os.path import dirname, abspath
 from pathlib import Path
 from psutil import cpu_count
 from gzip import open as gzopen
@@ -92,7 +92,7 @@ def chunck_process(data:bytes) -> list:
     return unities
 
 def cities_gen_p(ct:country, simplify:bool) -> None:
-    file_path:Path = Path("%s\\Vértices\\vert_mun_brasil.bin.gz"%(dirname(abspath(__file__))))
+    file_path:Path = Path("%s\\data\\vert_mun_brasil.bin.gz"%(dirname(abspath(__file__))))
     with gzopen(file_path, "rb") as file:
         lines:bytes = file.read()
     
@@ -136,11 +136,11 @@ def cities_gen_p(ct:country, simplify:bool) -> None:
         for cit in [ct.get_states([gc//100000])[0].get_cities([gc])[0] for gc in simplify_list]:
             cit.vertices = np.array(sh.simplify(sh.Polygon(cit.vertices), 0.01).exterior.coords, ndmin=2)
     
-    for cit in [ct.get_states([int(fv[1:3])])[0].get_cities([int(fv[1:8])])[0] for fv in listdir("%s\\Vértices"%(dirname(abspath(__file__)))) if fv.endswith("vertex_fixed.dat")]:
-        cit.vertices = np.loadtxt("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name), delimiter=',')
+    for cit in [ct.get_states([int(fv[1:3])])[0].get_cities([int(fv[1:8])])[0] for fv in listdir("%s\\data"%(dirname(abspath(__file__)))) if fv.endswith("vertex_fixed.dat")]:
+        cit.vertices = np.loadtxt("%s\\data\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name), delimiter=',')
 
 def states_gen_p(ct:country) -> None:
-    file_path:Path = Path("%s\\Vértices\\vert_sta_brasil.bin.gz"%(dirname(abspath(__file__))))
+    file_path:Path = Path("%s\\data\\vert_sta_brasil.bin.gz"%(dirname(abspath(__file__))))
     with gzopen(file_path, 'rb', 9) as file:
         lines:bytes = file.read()
     
@@ -232,13 +232,8 @@ def city_based_coords_gen(st:state, cit:city, r:float) -> int:
         print("%s[%i] poucas coordenadas: %i -> esperado: %i\tForça bruta falhou..."%(cit.name, cit.geocode, xys.shape[0], cit_shape.area*10000//(np.pi*r**2)))
     
     
-    if (not(isdir("%s\\coords"%(dirname(abspath(__file__)))))):
-        try: mkdir("%s\\coords"%(dirname(abspath(__file__))))
-        except FileExistsError: None
-    if (not(isdir("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla)))):
-        try: mkdir("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla))
-        except FileExistsError: None
-    np.savetxt("%s\\coords\\%s\\[%i]_%s_coords.dat"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), xys, "%.13f",',')
+    makedirs("%s\\outputs\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), exist_ok=True)
+    np.savetxt("%s\\outputs\\coords\\%s\\[%i]_%s_coords.dat"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), xys, "%.13f",',')
 
     return xys.shape[0]
 
@@ -247,30 +242,24 @@ def plot_coords(st:state, cit:city|None=None) -> None:
     from matplotlib import use
     use("Agg")
 
+    makedirs("%s\\outputs\\plots\\%s"%(dirname(abspath(__file__)), st.sigla), exist_ok=True)
 
-    if (not(isdir("%s\\plots"%(dirname(abspath(__file__)))))):
-        try: mkdir("%s\\plots"%(dirname(abspath(__file__))))
-        except FileExistsError: None
-    if (not(isdir("%s\\plots\\%s"%(dirname(abspath(__file__)), st.sigla)))):
-        try: mkdir("%s\\plots\\%s"%(dirname(abspath(__file__)), st.sigla))
-        except FileExistsError: None
-
-    br:str = next(f for f in listdir(dirname(abspath(__file__))) if f.startswith("Brasil"))
-    stfolder:str = next(f for f in listdir("%s\\%s"%(dirname(abspath(__file__)), br)) if f[0:2] == st.sigla)
+    br:str = next(f for f in listdir("%s\\outputs"%(dirname(abspath(__file__)))) if f.startswith("Brasil"))
+    stfolder:str = next(f for f in listdir("%s\\outputs\\%s"%(dirname(abspath(__file__)), br)) if f[0:2] == st.sigla)
     if(cit):
-        xys:np.ndarray = np.loadtxt("%s\\%s\\%s\\[%i]_%s_coords.dat"%(dirname(abspath(__file__)), br, stfolder, cit.geocode, cit.name), delimiter=',', ndmin=2)
+        xys:np.ndarray = np.loadtxt("%s\\outputs\\%s\\%s\\[%i]_%s_coords.dat"%(dirname(abspath(__file__)), br, stfolder, cit.geocode, cit.name), delimiter=',', ndmin=2)
         plt.plot(cit.vertices[:,0], cit.vertices[:,1], scalex=True, scaley=True, color="#DB5C1F")
         plt.scatter(xys[:, 0], xys[:, 1],color="red",s=0.5)
         plt.title("[%i] %s - %s"%(cit.geocode, cit.name, st.sigla))
-        plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='Agg', dpi=200)
+        plt.savefig("%s\\outputs\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='Agg', dpi=200)
     else:
         xys = np.concatenate(
-            [np.loadtxt("%s\\%s\\%s\\%s"%(dirname(abspath(__file__)), br, stfolder, f), delimiter=',', ndmin=2) for f in listdir("%s\\%s\\%s"%(dirname(abspath(__file__)), br, stfolder))]
+            [np.loadtxt("%s\\outputs\\%s\\%s\\%s"%(dirname(abspath(__file__)), br, stfolder, f), delimiter=',', ndmin=2) for f in listdir("%s\\outputs\\%s\\%s"%(dirname(abspath(__file__)), br, stfolder))]
         )
         plt.plot(st.vertices[:,0], st.vertices[:,1], scalex=True, scaley=True, color="#DB5C1F")
         plt.scatter(xys[:, 0], xys[:, 1],color="red",s=0.5)
         plt.title("[%i] %s - %s"%(st.geocode, st.name, st.sigla))
-        plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, st.geocode, st.name), backend='Agg', dpi=200)
+        plt.savefig("%s\\outputs\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, st.geocode, st.name), backend='Agg', dpi=200)
 
     plt.close()
 
@@ -286,13 +275,13 @@ def main_gen(r:float) -> None:
             start_time:float = perf_counter()
             state_coords:int = sum(p.starmap(city_based_coords_gen, [[st, cit, r] for cit in st.cities]))
 
-            rename("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
+            rename("%s\\outputs\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\outputs\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
 
             total_coords += state_coords
             print("\nTotal de coordenadas %s: %i"%(st.sigla, state_coords))
             print("execution time %s: %0.6f\n"%(st.sigla, perf_counter()-start_time))
 
-    rename("%s\\coords"%(dirname(abspath(__file__))), "%s\\Brasil[%i]_coordinates"%(dirname(abspath(__file__)), total_coords))
+    rename("%s\\outputs\\coords"%(dirname(abspath(__file__))), "%s\\outputs\\Brasil[%i]_coordinates"%(dirname(abspath(__file__)), total_coords))
 
     print("Total de coordenadas %s: %i"%(Brasil.name, total_coords))
     print("execution time:", perf_counter()-start)
@@ -316,7 +305,7 @@ def main() -> None:
         Caso queira que as pastas gere o número de coordenadas, basta descomentar os renames na função main_gen. 
         Porém lembrar de comentá-los ou mudar o nome da pasta coords para não gerar erros em próximas execuções. """
     
-    main_gen(1.35)
+    #main_gen(1.35)
 
     """ Gerador de gráficos pra visualização tanto do formato do município como da qualidade das coordenadas geradas.
         Não recebe nenhum parametro e gera png's de todos os os municípios do país na pasta gerada 'plot'.

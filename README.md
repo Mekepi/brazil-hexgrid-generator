@@ -1,2 +1,17 @@
-# brazil-hexgrid-generator
-Generates a hexagonal grid of coordinates covering all Brazilian cities.
+# Brazil HexGrid Generator  
+
+Generates a hexagonal grid of coordinates covering Brazilian cities for solar energy potential analysis.  
+
+![Example Grid Plot](outputs/plots/SP/[3550308]_São Paulo.png) *Example output for São Paulo*
+
+## Features  
+- **OOP-based** processing of cities/states (`city`, `state`, `country` classes).  
+- **Parallelized** grid generation using `multiprocessing`.  
+- **Adjustable hexagon radius**.  
+- **Visualization** with Matplotlib (optional).  
+
+## Usage  
+### 1. Generate Grids  
+```python
+from src.hexgrid_generator import main_gen
+main_gen(radius_km=1.35)  # Saves to /outputs/[STATE]/[CITY]_coords.dat
