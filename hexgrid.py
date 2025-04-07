@@ -195,7 +195,7 @@ def Hex_Points_in_Polygon_forced(polygon:sh.Polygon, r:float) -> np.ndarray:
     xys:np.ndarray = (np.column_stack((2*r*0.01*np.round(np.cos(np.arange(0, 2*np.pi, np.pi/3)), 6),
                                       2*r*0.01*np.round(np.sin(np.arange(0, 2*np.pi, np.pi/3)), 6))))
     points:list[list[float]] = [[polygon.centroid.x, polygon.centroid.y]]
-    rect:sh.Polygon = sh.minimum_rotated_rectangle(polygon)
+    rect = sh.minimum_rotated_rectangle(polygon)
     sh.prepare(rect)
     sh.prepare(polygon)
 
