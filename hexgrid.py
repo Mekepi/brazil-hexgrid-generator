@@ -276,7 +276,7 @@ def hexgrid_generator(radius:float) -> None:
     with Pool(cpu_count()) as p:
         for st in Brasil.states:
             start_time:float = perf_counter()
-            state_coords:int = sum(p.starmap(city_based_coords_gen, [[st, cit, r] for cit in st.cities]))
+            state_coords:int = sum(p.starmap(city_based_coords_gen, [[st, cit, radius] for cit in st.cities]))
 
             rename("%s\\outputs\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\outputs\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
 
