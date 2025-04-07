@@ -11,8 +11,22 @@ from gzip import open as gzopen
 
 
 class city:
+    """Represents a Brazilian municipality with geometric boundaries.
+    
+    Attributes:
+        name (str): Official municipality name (e.g., 'Rio de Janeiro').
+        geocode (int): 7-digit IBGE code (e.g., 3304557).
+        vertices (np.ndarray): Polygon vertices in EPSG:4326 (lon, lat).
+    """
 
     def __init__(self, name:str, geocode:int, coords:np.ndarray) -> None:
+        """Initialize a City.
+        
+        Args:
+            name: Municipality name.
+            geocode: IBGE geocode.
+            coords: Boundary coordinates as (N, 2) array.
+        """
         self.name:str = name
         self.geocode:int = geocode
         self.vertices:np.ndarray = coords
@@ -20,13 +34,33 @@ class city:
         return ("[%i] %s - vertices: %i"%(self.geocode, self.name, len(self.vertices)))
 
 class state:
+    """Represents a Brazilian state with cities and boundaries.
+    
+    Attributes:
+        name (str): Official state name (e.g., 'Minas Gerais').
+        sigla: 2-letter state abbreviation (e.g., 'MG').
+        geocode (int): 2-digit IBGE code (e.g., 31).
+        cities (List[City]): Municipalities within this state.
+        citiesgc (List[int]): Municipalities geocodes within this state.
+        vertices (np.ndarray): Polygon vertices in EPSG:4326 (lon, lat).
+        
+    """
 
     def __init__(self, name:str, sigla:str, geocode:int, cities:list[city], coords:np.ndarray) -> None:
+        """Initialize a State.
+        
+        Args:
+            name: State name.
+            sigla: 2-letter state abbreviation.
+            geocode (int): 2-digit IBGE code.
+            cities: Preloaded City objects (can be empty).
+            coords: State boundary coordinates as (N, 2) array.
+        """
         self.name:str = name
         self.sigla:str = sigla
         self.geocode:int = geocode
         self.cities:list[city] = cities
-        self.citiesgc:list[int] = list(c.geocode for c in cities)
+        self.citiesgc:list[int] = [c.geocode for c in cities]
         self.vertices:np.ndarray = coords
 
     def add_city(self, city:city) -> None:
@@ -43,8 +77,25 @@ class state:
         return ("[%i] %s - %s - cities:%i"%(self.geocode, self.sigla, self.name, len(self.cities)))
 
 class country:
+    """Represents Brasil as a geographic entity with states and national boundaries.
+
+    Attributes:
+        name (str): Official country name ('Brasil').
+        sigla (str): 2-letter country code ('BR').
+        states (List[state]): States within the country.
+        vertices (np.ndarray): National boundary coordinates in EPSG:4326 (lon, lat).
+    """
+
 
     def __init__(self, name:str, sigla:str, states:list[state], coords:np.ndarray) -> None:
+        """Initializes the country with geographic data.
+        
+        Args:
+            name: Full country name (e.g., 'Brasil').
+            sigla: ISO country code (e.g., 'BR').
+            states: Preloaded state objects (can be empty).
+            coords: Boundary coordinates as (N, 2) array.
+        """
         self.name:str = name
         self.sigla:str = sigla
         self.states:list[state] = states
