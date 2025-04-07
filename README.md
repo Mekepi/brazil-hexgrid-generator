@@ -13,5 +13,5 @@ Generates a hexagonal grid of coordinates covering Brazilian cities for solar en
 ## Usage  
 ### 1. Generate Grids  
 ```python
-from src.hexgrid_generator import main_gen
-main_gen(radius_km=1.35)  # Saves to /outputs/[STATE]/[CITY]_coords.dat
+from src.hexgrid import hexgrid_generator
+hexgrid_generator(radius=1.35)  # Saves to /outputs/Brasil
