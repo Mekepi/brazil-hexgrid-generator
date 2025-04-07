@@ -61,7 +61,7 @@ class country:
         return [st for st in self.states if (st.geocode in names_or_siglas_or_geocodes or st.sigla in names_or_siglas_or_geocodes or st.name in names_or_siglas_or_geocodes)]
     
     def __str__(self) -> str:
-        return("%s - %s - vertices: %i\nstates: %i\tcities: %i"%(self.sigla, self.name, len(self.coords), len(self.states), sum([len(st.cities) for st in self.states])))
+        return("%s - %s - vertices: %i\nstates: %i\tcities: %i"%(self.sigla, self.name, len(self.vertices), len(self.states), sum([len(st.cities) for st in self.states])))
 
 def chunck_process(data:bytes) -> list:
     #X[0],Y[1],nome[2],geocodigo[3],vertex_index[4] --- city
@@ -223,10 +223,7 @@ def Hex_Points_in_Polygon_forced(polygon:sh.Polygon, r:float) -> np.ndarray:
     points_array:np.ndarray = np.array(points)
     return points_array[np.vectorize(sh.within, signature='(a),()->(a)')(np.vectorize(sh.Point,signature='(a)->()')(points_array), polygon)]
 
-def city_based_coords_gen(args) -> int:
-    st:state = args[0]
-    cit:city = args[1]
-    r:float = args[2]
+def city_based_coords_gen(st:state, cit:city, r:float) -> int:
     
     cit_shape:sh.Polygon = sh.Polygon(cit.vertices)
 
@@ -245,14 +242,11 @@ def city_based_coords_gen(args) -> int:
 
     return xys.shape[0]
 
-def plot_coords(args) -> None:
+def plot_coords(st:state, cit:city|None=None) -> None:
     import matplotlib.pyplot as plt
     from matplotlib import use
     use("Agg")
 
-
-    st:state = args[0]
-    if(len(args)>1): cit:city = args[1]
 
     if (not(isdir("%s\\plots"%(dirname(abspath(__file__)))))):
         try: mkdir("%s\\plots"%(dirname(abspath(__file__))))
@@ -263,7 +257,7 @@ def plot_coords(args) -> None:
 
     br:str = next(f for f in listdir(dirname(abspath(__file__))) if f.startswith("Brasil"))
     stfolder:str = next(f for f in listdir("%s\\%s"%(dirname(abspath(__file__)), br)) if f[0:2] == st.sigla)
-    if(len(args)>1):
+    if(cit):
         xys:np.ndarray = np.loadtxt("%s\\%s\\%s\\[%i]_%s_coords.dat"%(dirname(abspath(__file__)), br, stfolder, cit.geocode, cit.name), delimiter=',', ndmin=2)
         plt.plot(cit.vertices[:,0], cit.vertices[:,1], scalex=True, scaley=True, color="#DB5C1F")
         plt.scatter(xys[:, 0], xys[:, 1],color="red",s=0.5)
@@ -290,15 +284,15 @@ def main_gen(r:float) -> None:
     with Pool(cpu_count()) as p:
         for st in Brasil.states:
             start_time:float = perf_counter()
-            state_coords:int = sum(p.map(city_based_coords_gen, [[st, cit, r] for cit in st.cities]))
+            state_coords:int = sum(p.starmap(city_based_coords_gen, [[st, cit, r] for cit in st.cities]))
 
-            #rename("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
+            rename("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
 
             total_coords += state_coords
             print("\nTotal de coordenadas %s: %i"%(st.sigla, state_coords))
             print("execution time %s: %0.6f\n"%(st.sigla, perf_counter()-start_time))
 
-    #rename("%s\\coords"%(dirname(abspath(__file__))), "%s\\Brasil[%i]"%(dirname(abspath(__file__)), total_coords))
+    rename("%s\\coords"%(dirname(abspath(__file__))), "%s\\Brasil[%i]_coordinates"%(dirname(abspath(__file__)), total_coords))
 
     print("Total de coordenadas %s: %i"%(Brasil.name, total_coords))
     print("execution time:", perf_counter()-start)
@@ -310,11 +304,11 @@ def main_plot() -> None:
     with Pool(cpu_count()) as p:
         for st in Brasil.states:
             start_st:float = perf_counter()
-            plot_coords([st])
-            p.map(plot_coords, [[st, cit] for cit in st.cities], (len(st.cities)//cpu_count())+1)
-            print("plot time %s: %0.6f\n"%(st.sigla, perf_counter()-start_st))
+            plot_coords(st)
+            p.starmap(plot_coords, [[st, cit] for cit in st.cities], (len(st.cities)//cpu_count())+1)
+            print("plot duration %s: %0.6f\n"%(st.sigla, perf_counter()-start_st))
 
-    print("general plot time: %f"%(perf_counter()-start_time))
+    print("general plot duration: %f"%(perf_counter()-start_time))
 
 def main() -> None:
     """ Gerador de coordenadas. Recebe apenas o raio em Km.
@@ -322,7 +316,7 @@ def main() -> None:
         Caso queira que as pastas gere o número de coordenadas, basta descomentar os renames na função main_gen. 
         Porém lembrar de comentá-los ou mudar o nome da pasta coords para não gerar erros em próximas execuções. """
     
-    #main_gen(1.35)
+    main_gen(1.35)
 
     """ Gerador de gráficos pra visualização tanto do formato do município como da qualidade das coordenadas geradas.
         Não recebe nenhum parametro e gera png's de todos os os municípios do país na pasta gerada 'plot'.
