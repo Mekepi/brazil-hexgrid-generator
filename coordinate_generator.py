@@ -1,8 +1,8 @@
 import numpy as np
 import shapely as sh
 
-from multiprocessing import Pool
-from time import time
+from multiprocessing import Pool, Process
+from time import time, sleep
 from os import mkdir, listdir
 from os.path import dirname, abspath, isdir, isfile
 from pathlib import Path
@@ -24,12 +24,15 @@ class state:
         self.sigla:str = sigla
         self.geocode:int = geocode
         self.cities:list[city] = cities
+        self.citiesgc:list[int] = list(c.geocode for c in cities)
 
     def add_city(self, city:city) -> None:
-        if (city in self.cities):
-            print("City already included")
+        if (city.geocode in self.citiesgc):
+            #print("City already included")
+            None
         else:
             (self.cities).append(city)
+            (self.citiesgc).append(city.geocode)
 
     def get_cities(self, names_or_geocodes:list[str|int]) -> list[city]:
         return list(filter(lambda c: c.geocode in names_or_geocodes or c.name in names_or_geocodes, self.cities))
@@ -55,48 +58,83 @@ class country:
     def get_states(self, names_or_siglas_or_geocodes:list[str|int]) -> list[state]:
         return list(filter(lambda s: s.geocode in names_or_siglas_or_geocodes or s.sigla in names_or_siglas_or_geocodes or s.name in names_or_siglas_or_geocodes, self.states))
 
-def states_gen(file_path:Path, country:country) -> list[state]:
-    #X[0],Y[1],fid,nome[3],geometriaaproximada,geocodigo[5],anodereferencia,vertex_index[7],vertex_part,vertex_part_ring,vertex_part_index,distance,angle
-    with open(file_path, "r", encoding="utf8") as file:
-        line:list[str] = file.readline().split(',')[0:8]
-        while (line[0]):
-            st:state = country.get_states([int(line[5][1:3])])[0]
-            name:str = line[3]
-            geocode:int = int(line[5][1:-1])
-            coords:list[list[float]] = [[float(line[0]),float(line[1])]]
-            line = file.readline().split(',')[0:8]
-            while (line[0] and int(line[7]) != 0):
-                coords.append([float(line[0]),float(line[1])])
-                line = file.readline().split(',')[0:8]
-            st.add_city(city(name, geocode, np.array(coords)))
+def chunck_process(args) -> list[city]:
+    #X[0],Y[1],nome[2],geocodigo[3],vertex_index[4]
+    cities:list[city] = []
+    lines:list[str] = args[0].decode('utf-8').split('\n')
+    if (not(lines[-1])):
+        lines.pop(-1)
+    i:int = 0
+    line:list[str] = lines[i].split(',')
+    while (i < len(lines)):
+        name:str = line[2]
+        geocode:int = int(line[3][1:-1])
+        coords:list[list[float]] = [[float(line[0]),float(line[1])]]
+        i+=1
+        line = lines[i].split(',')
+        while (i < len(lines) and int(line[4]) != 0):
+            coords.append([float(line[0]),float(line[1])])
+            i+=1
+            if (i < len(lines)): line = lines[i].split(',')
+        cities.append(city(name, geocode, np.array(coords)))
     
-    return country.states
+    return cities
+
+def states_gen_p(ct:country) -> None:
+    file_path:Path = Path("%s\\Vértices\\vert_mun_brasil.bin"%(dirname(abspath(__file__))))
+    with open(file_path, "rb") as file:
+        lines:bytes = file.read()
+    
+    with Pool(cpu_count()) as p:
+        cities_blocks = p.map(
+            chunck_process, 
+            [
+            [lines[        0: 28955665], ct,  1],
+            [lines[ 28955665: 58423096], ct,  2],
+            [lines[ 58423096: 89149001], ct,  3],
+            [lines[ 89149001:118925057], ct,  4],
+            [lines[118925057:147005839], ct,  5],
+            [lines[147005839:176006902], ct,  6],
+            [lines[176006902:204768193], ct,  7],
+            [lines[204768193:234440444], ct,  8],
+            [lines[234440444:263299591], ct,  9],
+            [lines[263299591:292381024], ct, 10],
+            [lines[292381024:321690227], ct, 11],
+            [lines[321690227:         ], ct, 12]
+            ]
+        )
+    
+    for block in cities_blocks:
+        for cit in block:
+            ct.get_states([cit.geocode//100000])[0].add_city(cit)
 
 def Hex_Points_in_Polygon_forced(polygon:sh.Polygon, r:float) -> np.ndarray:
-    xys:np.ndarray = np.column_stack((2*r*0.01*np.round(np.cos(np.array([0, np.pi/3, np.pi*2/3, np.pi, np.pi*4/3, np.pi*5/3])), 6),
-                                      2*r*0.01*np.round(np.sin(np.array([0, np.pi/3, np.pi*2/3, np.pi, np.pi*4/3, np.pi*5/3])), 6)))
+    xys:np.ndarray = (np.column_stack((2*r*0.01*np.round(np.cos(np.arange(0, 2*np.pi, np.pi/3)), 6),
+                                      2*r*0.01*np.round(np.sin(np.arange(0, 2*np.pi, np.pi/3)), 6))))
     points:list[list[float]] = [[polygon.centroid.x, polygon.centroid.y]]
     xmin, ymin, xmax, ymax = polygon.bounds
     sqr:sh.Polygon = sh.Polygon([[xmin,ymin], [xmax,ymin], [xmax, ymax], [xmin, ymax]])
+    hex_pts:np.ndarray = np.tile(np.array([points[0]]), (6,1))
 
-    l:int = 1
-    ls:int = 0
-    while (len(points) > ls):
-        ls = len(points)
-        cs:np.ndarray = np.tile(np.array([points[0]]), (6,1))+l*xys
-        dxys:np.ndarray = np.array([
-                                cs[1,:]-cs[0,:],
-                                cs[2,:]-cs[1,:],
-                                cs[3,:]-cs[2,:],
-                                cs[4,:]-cs[3,:],
-                                cs[5,:]-cs[4,:],
-                                cs[0,:]-cs[5,:]
-        ])
-        mcs:np.ndarray = np.repeat(cs, l-1, 0)+np.repeat(dxys/l, l-1, 0)*np.tile(np.reshape(np.arange(1, l, 1), (l-1,1)), (6,1))
-        cs = np.concatenate((cs, mcs), 0)
+    layer:int = 1
+    growth_check:int = 0
+    while (len(points) > growth_check):
+        growth_check = len(points)
+        hex_pts += xys
+        deltaxys:np.ndarray = np.array(
+            [
+            hex_pts[1,:]-hex_pts[0,:],
+            hex_pts[2,:]-hex_pts[1,:],
+            hex_pts[3,:]-hex_pts[2,:],
+            hex_pts[4,:]-hex_pts[3,:],
+            hex_pts[5,:]-hex_pts[4,:],
+            hex_pts[0,:]-hex_pts[5,:]
+            ])
+        hex_mid_pts:np.ndarray = np.repeat(hex_pts, layer-1, 0)+np.repeat(deltaxys/layer, layer-1, 0)*np.tile(np.reshape(np.arange(1, layer, 1), (layer-1,1)), (6,1))
+        hex_all_pts:np.ndarray = np.concatenate((hex_pts, hex_mid_pts), 0)
         
-        points.extend((c for c in cs if sqr.contains(sh.Point([c]))))
-        l+=1
+        points.extend((p for p in hex_all_pts if sqr.contains(sh.Point([p]))))
+        layer+=1
     
     return np.array([p for p in points if polygon.contains(sh.Point([p]))], ndmin= 2)
 
@@ -109,7 +147,6 @@ def city_based_coords_gen(args) -> int:
             cit.coords = np.loadtxt("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name), delimiter=',', ndmin=2)
     cit_shape:sh.Polygon = sh.Polygon(cit.coords)
 
-    
     xys = Hex_Points_in_Polygon_forced(cit_shape, r)
 
     if (xys.shape[0] < 0.8*cit_shape.area*10000//(np.pi*r**2)):
@@ -153,7 +190,7 @@ def plot_coords(args) -> int:
         except FileExistsError: None
     
     #plt.show()
-    plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='agg')
+    plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='agg', dpi=200)
     return 0
 
 def brasil_gen() -> country:
@@ -186,7 +223,9 @@ def brasil_gen() -> country:
     state("Sergipe", "SE", 28, []),
     state("Tocantins", "TO", 17, [])
     ], [])
-    states_gen(Path("%s\\Vértices\\vert_mun_brasil.dat"%(dirname(abspath(__file__)))), Brasil)
+    #start = time()
+    states_gen_p(Brasil)
+    #print(time()- start)
 
     return Brasil
 
@@ -204,14 +243,23 @@ def main_gen(r:float) -> None:
         print("execution time %s: %0.6f\n"%(st.sigla, time()-start_time))
     print("Total de coordenadas %s: %i"%(Brasil.name, total_coords))
 
-def main_plot() -> None:
+def main_plot(interval:float=0.1) -> None:
     Brasil:country = brasil_gen()
     start_time:float = time()
     for st in Brasil.states:
         start_st:float = time()
 
-        with Pool(cpu_count()) as p:
-            state_coords:int = sum(p.map(plot_coords, [[st, cit] for cit in st.cities]))
+        processes:list[Process] = list(map(lambda cit: Process(target=plot_coords, args=[[st, cit]]), st.cities))
+        
+        for process in processes:
+            process.start()
+            sleep(interval)
+        
+        for process in processes:
+            process.join()
+            process.close()
+        """ with Pool(cpu_count()) as p:
+            _:int = sum(p.map(plot_coords, [[st, cit] for cit in st.cities])) """
         
         print("plot time %s: %0.6f\n"%(st.sigla, time()-start_st))
     print("general plot time: %f"%(time()-start_time))
@@ -220,16 +268,19 @@ def main() -> None:
     """ Gerador de coordenadas. Recebe apenas o raio em Km.
         Gerará pastas para todo os estados. Depois só tacar de novo na pasta Brasil que tinhas as coordenadas previamente. """
     
-    main_gen(1.35)
+    #main_gen(1.35)
 
     """ Gerador de gráficos pra visualização tanto do formato do município como da qualidade das coordenadas geradas.
-        Não recebe nenhum parametro e gera png's. Caso queira outro formato, alterar na função plot_coords.
-        Por algum motivo, gera-los paralelamente simplesmente deixa a maioria totalmente bagunçados, mas as coords estão certas.
-        Se quiser testar individualmente, só alterar a função usando os getters."""
-    
-    #main_plot()
+        Não recebe nenhum parametro e gera png's de todos os os municípios do país na pasta gerada 'plot'.
+        Caso queira outro formato, alterar na função plot_coords.
 
-    """ Tanto country, como state tem funções getters. """
+        Se, por algum acaso, os plots estejam estrenhos, é por conta do intervalo entre cada plot. Matplotlib não lida bem com paralelismo. 
+        Então só pôr como argumento da função main_plot um valor maior que o base, que é 0.1 (isso são segundos entre o início de cada processo).
+        Como geralmente leva 0.6~0.8s para um plot completo terminar, então, sendo conservador, 0.4 já garante total estabilidade. """
+    
+    main_plot()
+
+    """ Tanto country, como state tem funções getters. Caso queria acessar apenas alguns estados ou municípios em específico. """
 
     #country.get_states(["BA", 13]) #Recebe lista de geocódigo de estados ou siglas
 
