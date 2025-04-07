@@ -109,6 +109,10 @@ def states_gen_p(ct:country) -> None:
         for cit in block:
             ct.get_states([cit.geocode//100000])[0].add_city(cit)
 
+    for gc in [fv[1:8] for fv in listdir("%s\\Vértices"%(dirname(abspath(__file__)))) if fv.endswith("vertex_fixed.dat")]:
+        c:city = ct.get_states([int(gc[:2])])[0].get_cities([int(gc)])[0] 
+        c.coords = np.loadtxt("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), c.geocode, c.name), delimiter=',')
+
 def Hex_Points_in_Polygon_forced(cit:city, r:float) -> np.ndarray:
     polygon:sh.Polygon = sh.Polygon(cit.coords)
     xys:np.ndarray = (np.column_stack((2*r*0.01*np.round(np.cos(np.arange(0, 2*np.pi, np.pi/3)), 6),
@@ -161,13 +165,11 @@ def city_based_coords_gen(args) -> int:
     cit:city = args[1]
     r:float = args[2]
     
-    if (isfile("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name))):
-            cit.coords = np.loadtxt("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name), delimiter=',', ndmin=2)
     cit_shape:sh.Polygon = sh.Polygon(cit.coords)
 
     #start = time()
     xys = Hex_Points_in_Polygon_forced(cit, r)
-    #if (time()-start > 6.): print("[%i] %s hex_gen time (coords: %i, area: %f, prod: %.2f): %.6f\n"%(cit.geocode, cit.name, len(cit.coords), cit_shape.area, len(cit.coords)*cit_shape.area, time()-start))
+    #print("[%i] %s hex_gen time (coords: %i, area: %f, prod: %.2f): %.6f\n"%(cit.geocode, cit.name, len(cit.coords), cit_shape.area, len(cit.coords)*cit_shape.area, time()-start))
 
     if (xys.shape[0] < 0.8*cit_shape.area*10000//(np.pi*r**2)):
         print("%s[%i] poucas coordenadas: %i -> esperado: %i\tForça bruta falhou..."%(cit.name, cit.geocode, xys.shape[0], cit_shape.area*10000//(np.pi*r**2)))
@@ -183,9 +185,9 @@ def city_based_coords_gen(args) -> int:
 
     return xys.shape[0]
 
-def plot_coords(st:state, cit:city) -> None:
-    if (isfile("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name))):
-        cit.coords = np.loadtxt("%s\\Vértices\\[%i]_%s_vertex_fixed.dat"%(dirname(abspath(__file__)), cit.geocode, cit.name), delimiter=',')
+def plot_coords(args) -> None:
+    st:state = args[0]
+    cit:city = args[1]
 
     br:str = next(f for f in listdir(dirname(abspath(__file__))) if f.startswith("Brasil"))
     stfolder:str = next(f for f in listdir("%s\\%s"%(dirname(abspath(__file__)), br)) if f[0:2] == st.sigla)
@@ -194,8 +196,9 @@ def plot_coords(st:state, cit:city) -> None:
 
     import matplotlib.pyplot as plt
     from matplotlib import use
-    use("agg")
+    use("Agg")
 
+    plt.new_figure_manager(cit.geocode)
     # Plot the polygon
     plt.plot(cit.coords[:,0], cit.coords[:,1], scalex=True, scaley=True, color="#DB5C1F")
 
@@ -212,7 +215,8 @@ def plot_coords(st:state, cit:city) -> None:
         except FileExistsError: None
     
     #plt.show()
-    plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='agg', dpi=200)
+    plt.savefig("%s\\plots\\%s\\[%i]_%s.png"%(dirname(abspath(__file__)), st.sigla, cit.geocode, cit.name), backend='Agg', dpi=200)
+    plt.close()
 
 def brasil_gen() -> country:
     Brasil:country = country("Brasil", "BR", [
@@ -260,27 +264,23 @@ def main_gen(r:float) -> None:
         with Pool(cpu_count()) as p:
             state_coords:int = sum(p.map(city_based_coords_gen, [[st, cit, r] for cit in st.cities]))
 
+        #rename("%s\\coords\\%s"%(dirname(abspath(__file__)), st.sigla), "%s\\coords\\%s[%i]"%(dirname(abspath(__file__)), st.sigla, state_coords))
+
         total_coords += state_coords
         print("\nTotal de coordenadas %s: %i"%(st.sigla, state_coords))
         print("execution time %s: %0.6f\n"%(st.sigla, time()-start_time))
+    #rename("%s\\coords"%(dirname(abspath(__file__))), "%s\\coords[%i]"%(dirname(abspath(__file__)), total_coords))
     print("Total de coordenadas %s: %i"%(Brasil.name, total_coords))
     print("execution time:", time()-start)
 
-def main_plot(interval:float=0.1) -> None:
+def main_plot() -> None:
     Brasil:country = brasil_gen()
     start_time:float = time()
     for st in Brasil.states:
         start_st:float = time()
 
-        processes:list[Process] = list(map(lambda cit: Process(target=plot_coords, args=[[st, cit]]), st.cities))
-        
-        for process in processes:
-            process.start()
-            sleep(interval)
-        
-        for process in processes:
-            process.join()
-            process.close()
+        with Pool(cpu_count()) as p:
+            p.map(plot_coords, [(st, cit) for cit in st.cities])
         
         print("plot time %s: %0.6f\n"%(st.sigla, time()-start_st))
     print("general plot time: %f"%(time()-start_time))
