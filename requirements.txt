@@ -1,0 +1,8 @@
+# Core dependencies
+numpy>=1.21.0,<2.0.0          # Array processing
+shapely>=2.0.0,<3.0.0         # Geometric operations
+matplotlib>=3.5.0,<4.0.0      # Plotting (only needed for visualization)
+psutil>=5.9.0,<6.0.0          # CPU count detection
+
+# Development extras (optional)
+mypy>=0.900                   # Type checking
