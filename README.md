@@ -2,7 +2,7 @@
 
 Generates a hexagonal grid of coordinates covering Brazilian cities for solar energy potential analysis.  
 
-![Example Grid Plot](outputs/plots/SP/[3550308]_São Paulo.png) *Example output for São Paulo*
+![Example Grid Plot](https://github.com/Mekepi/brazil-hexgrid-generator/blob/main/outputs/plots/SP/%5B3550308%5D_S%C3%A3o%20Paulo.png) *Example output for São Paulo*
 
 ## Features  
 - **OOP-based** processing of cities/states (`city`, `state`, `country` classes).  
