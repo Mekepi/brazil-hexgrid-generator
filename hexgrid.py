@@ -265,7 +265,10 @@ def plot_coords(st:state, cit:city|None=None) -> None:
 
 
 
-def main_gen(r:float) -> None:
+def hexgrid_generator(radius:float) -> None:
+    '''
+    radius [km]
+    '''
     Brasil:country = brasil_gen(True)
 
     start:float = perf_counter()
@@ -286,7 +289,7 @@ def main_gen(r:float) -> None:
     print("Total de coordenadas %s: %i"%(Brasil.name, total_coords))
     print("execution time:", perf_counter()-start)
 
-def main_plot() -> None:
+def hexgrid_plot() -> None:
     Brasil:country = brasil_gen(False)
 
     start_time:float = perf_counter()
@@ -305,13 +308,13 @@ def main() -> None:
         Caso queira que as pastas gere o número de coordenadas, basta descomentar os renames na função main_gen. 
         Porém lembrar de comentá-los ou mudar o nome da pasta coords para não gerar erros em próximas execuções. """
     
-    #main_gen(1.35)
+    hexgrid_generator(1.35)
 
     """ Gerador de gráficos pra visualização tanto do formato do município como da qualidade das coordenadas geradas.
         Não recebe nenhum parametro e gera png's de todos os os municípios do país na pasta gerada 'plot'.
         Caso queira outro formato, alterar na função plot_coords. """
     
-    main_plot()
+    hexgrid_plot()
 
     """ Tanto country, como state tem funções getters. Caso queria acessar apenas alguns estados ou municípios em específico. """
 
