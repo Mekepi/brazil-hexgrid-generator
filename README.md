@@ -22,3 +22,6 @@ hexgrid_generator(radius=1.35)  # Saves to /outputs/Brasil
 from src.hexgrid import hexgrid_plot
 hexgrid_plot()  # Saves PNGs to /outputs/plots/[STATE]/[CITY].png
 ```
+
+## Data Preparation
+The geographic data used in this project comes from IBGE's BC250 series.
